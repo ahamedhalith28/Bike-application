@@ -28,14 +28,15 @@ jobs:
       # Step 4: Extract metadata (tags, labels) for Docker
       # This automatically creates standard tags like :main and :sha-xxxxxxx
             # Step 4: Extract Docker metadata
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
+            # Step 5: Build and push using the full 40-character Commit ID
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
         with:
-          images: ${{ secrets.DOCKER_HUB_USERNAME }}/my-app-name
-          tags: |
-            # This makes the tag exactly your 7-character short commit SHA (e.g., a1b2c3d)
-            type=sha,format=short,prefix=
+          context: .
+          file: ./Dockerfile
+          push: true
+          # Tags directly with the full commit hash
+          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/my-app-name:${{ github.sha }}
 
       # Step 5: Build the Dockerfile and push it to Docker Hub
       - name: Build and push Docker image
