@@ -32,9 +32,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ secrets.DOCKER_HUB_USERNAME }}/bike-app
-          tags: |
-            type=ref,event=branch
-            type=sha,format=short
+          tags: 
 
       # Step 5: Build the Dockerfile and push it to Docker Hub
       - name: Build and push Docker image
@@ -43,7 +41,5 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ id.meta.outputs.tags }}
-          labels: ${{ id.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
