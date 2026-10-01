@@ -1,1 +1,1 @@
-This is Bike-application
+This is Bike-application runnin on AWS EC2
