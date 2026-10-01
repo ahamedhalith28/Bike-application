@@ -68,7 +68,7 @@ jobs:
             --name my-app \
             --restart unless-stopped \
             -p 80:3000 \
-            ${{ secrets.DOCKER_HUB_USERNAME }}/my-app-name:${{ github.sha }}
+            ${{ secrets.DOCKER_HUB_USERNAME }}/bikeapp-gitci:${{ github.sha }}
 
       - name: Remove old images
         run: docker image prune -af
