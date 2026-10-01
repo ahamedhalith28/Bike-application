@@ -47,3 +47,28 @@ jobs:
                                  # After building, save layers back to the cache.
                                  # mode=max caches all layers, not just the final ones,
                                  # which makes later builds faster
+  deploy:
+    needs: build-and-push        # Wait until the image is pushed
+    runs-on: self-hosted         # Run on your own server
+
+    steps:
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      - name: Pull new image
+        run: docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/my-app-name:${{ github.sha }}
+
+      - name: Replace running container
+        run: |
+          docker rm -f my-app || true
+          docker run -d \
+            --name my-app \
+            --restart unless-stopped \
+            -p 80:3000 \
+            ${{ secrets.DOCKER_HUB_USERNAME }}/my-app-name:${{ github.sha }}
+
+      - name: Remove old images
+        run: docker image prune -af
