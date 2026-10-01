@@ -26,7 +26,21 @@ jobs:
             ${{ secrets.DOCKER_HUB_USERNAME }}/bikeapp-gitci:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
+      - name: Copy compose file to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: docker-compose.yml
+          target: ~/bikeapp
+          
       - name: Deploy on EC2
         uses: appleboy/ssh-action@v1.0.3
         env:
