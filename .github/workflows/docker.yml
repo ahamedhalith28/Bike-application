@@ -59,7 +59,7 @@ jobs:
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
       - name: Pull new image
-        run: docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/my-app-name:${{ github.sha }}
+        run: docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/bikeapp-gitci:${{ github.sha }}
 
       - name: Replace running container
         run: |
