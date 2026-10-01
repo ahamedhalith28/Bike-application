@@ -1,77 +1,55 @@
-# Name shown in the "Actions" tab of your GitHub repo
-name: Build and Push Docker Image
+name: Build and Deploy
 
-# "on" defines what triggers the workflow
 on:
-  push:                     # Run when someone pushes commits
-    branches: [ "main" ]    # ...but only to the main branch
+  push:
+    branches: [main]
 
-# A workflow is made of one or more jobs
 jobs:
-  build-and-push:           # Job ID (any name you like)
-    runs-on: ubuntu-latest  # GitHub gives you a fresh Ubuntu VM to run the job on
-
-    # Steps run one after another, in order, on that VM
+  build:
+    runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
 
-      - name: Checkout code           # Label shown in the logs
-        uses: actions/checkout@v4     # Prebuilt action that downloads your repo's code
-                                      # onto the VM (otherwise the VM would be empty)
+      - uses: docker/setup-buildx-action@v3
 
-      - name: Set up Docker Buildx            # Label
-        uses: docker/setup-buildx-action@v3   # Installs Buildx, Docker's modern build engine.
-                                              # Needed for the GitHub Actions cache used below
-
-      - name: Log in to Docker Hub            # Label
-        uses: docker/login-action@v3          # Prebuilt action that runs "docker login"
-        with:                                 # Inputs passed to the action
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}  # Your Docker Hub username, read from
-                                                        # GitHub repo secrets (never hardcode it)
-          password: ${{ secrets.DOCKER_HUB_TOKEN }}     # A Docker Hub access token, also a secret.
-                                                        # Better than using your real password
-
-      - name: Build and push Docker image            # Label
-        uses: docker/build-push-action@v6            # Builds the image and optionally pushes it
-        with:
-          context: .             # Folder sent to Docker as the build context
-                                 # ("." = repo root). COPY/ADD in the Dockerfile read from here
-          file: ./Dockerfile     # Path to the Dockerfile to build from
-          push: true             # Push the image to the registry after building
-                                 # (false = build only)
-          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/bikeapp-gitci:${{ github.sha }}
-                                 # Image name and tag, in the form username/repo:tag.
-                                 # github.sha is the full 40-character commit hash,
-                                 # so every commit gets a unique, traceable tag
-          cache-from: type=gha   # Before building, pull cached layers from GitHub Actions cache
-          cache-to: type=gha,mode=max
-                                 # After building, save layers back to the cache.
-                                 # mode=max caches all layers, not just the final ones,
-                                 # which makes later builds faster
-  deploy:
-    needs: build-and-push
-    runs-on: self-hosted
-    env:
-      DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
-      IMAGE_TAG: ${{ github.sha }}
-      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-      DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
-      DJANGO_ALLOWED_HOSTS: ${{ secrets.DJANGO_ALLOWED_HOSTS }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+      - uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
-      - name: Pull new image
-        run: docker compose pull
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_HUB_USERNAME }}/bikeapp-gitci:${{ github.sha }}
+            ${{ secrets.DOCKER_HUB_USERNAME }}/bikeapp-gitci:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Start updated containers
-        run: docker compose up -d --remove-orphans
-
-      - name: Remove old images
-        run: docker image prune -af
+      - name: Deploy on EC2
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          DJANGO_ALLOWED_HOSTS: ${{ secrets.DJANGO_ALLOWED_HOSTS }}
+          DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+          IMAGE_TAG: ${{ github.sha }}
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: POSTGRES_PASSWORD,DJANGO_SECRET_KEY,DJANGO_ALLOWED_HOSTS,DOCKER_HUB_USERNAME,IMAGE_TAG
+          script: |
+            cd ~/bikeapp
+            umask 077
+            cat > .env <<EOF
+            POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+            DJANGO_SECRET_KEY=$DJANGO_SECRET_KEY
+            DJANGO_ALLOWED_HOSTS=$DJANGO_ALLOWED_HOSTS
+            DOCKER_HUB_USERNAME=$DOCKER_HUB_USERNAME
+            IMAGE_TAG=$IMAGE_TAG
+            EOF
+            docker compose pull web
+            docker compose up -d
+            docker image prune -f

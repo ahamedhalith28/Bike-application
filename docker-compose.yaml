@@ -15,7 +15,9 @@ services:
       retries: 10
 
   web:
-    image: ${DOCKER_HUB_USERNAME}/bikeapp-gitci:${IMAGE_TAG}
+    build:
+      context: .
+      dockerfile: Dockerfile
     restart: unless-stopped
     command: sh -c "python manage.py migrate --noinput && gunicorn bikeapp.wsgi:application --bind 0.0.0.0:8000 --workers 3"
     ports:
